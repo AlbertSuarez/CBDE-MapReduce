@@ -1,47 +1,114 @@
 package groupBy;
-// Standard classes
-import java.io.IOException;
-import java.util.Vector;
-import java.util.ArrayList;
 
-// HBase classes
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.client.HTable;
-import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
-import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.KeyValue;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.mapreduce.TableSplit;
-import org.apache.hadoop.hbase.TableName;
-
-// Hadoop classes
-import org.apache.hadoop.util.ToolRunner;
-import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.util.Tool;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Reducer.Context;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+
+import java.io.IOException;
 
 public class GroupBy extends Configured implements Tool {
 
+    public static final String ATTRIBUTES = "attributes";
+    public static final String JOB_NAME = "GroupBy";
+    public static final String ALREADY_EXISTS = "Output table already exists";
+    public static final String NOT_EXIST = "Input table does not exist";
+    public static final String PARAMETERS_MISSING = "Parameters missing: 'inputTable outputTable aggregateAttribute groupByAttribute'";
+
+    private static String inputTable;
+    private static String outputTable;
+    private static String attribute;
+    private static String value;
+
     public static void main(String[] args) throws Exception {
-        if (args.length<5) {
-            System.err.println("Parameters missing: ");
+        // Check the quantity of params received.
+        if (args.length != 4) {
+            System.err.println(PARAMETERS_MISSING);
             System.exit(1);
         }
+        // Assign the input and output table.
+        inputTable = args[0];
+        outputTable = args[1];
+
+        // Check the validity tables.
+        int tablesRight = checkIOTables(args);
+        if (tablesRight == 0) {
+            // Execute the algorithm.
+            int ret = ToolRunner.run(new GroupBy(), args);
+            System.exit(ret);
+        }
+        else
+            System.exit(tablesRight);
     }
 
-    public int run(String[] strings) throws Exception {
+    private static int checkIOTables(String [] args) throws Exception {
+        Configuration config = HBaseConfiguration.create();
+        HBaseAdmin hba = new HBaseAdmin(config);
+
+        // Check the existence of the input table.
+        if (!hba.tableExists(inputTable)) {
+            System.err.println(NOT_EXIST);
+            return 2;
+        }
+        // Check the nonexistence of the output table.
+        if (hba.tableExists(outputTable)) {
+            System.err.println(ALREADY_EXISTS);
+            return 3;
+        }
+
+        // Create the output table and assign the correspond family (aggregateAttribute).
+        HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
+        htdOutput.addFamily(new HColumnDescriptor(args[2]));
+
+        hba.createTable(htdOutput);
         return 0;
+    }
+
+    public int run(String[] args) throws Exception {
+        // Create Configuration.
+        Job job = new Job(HBaseConfiguration.create());
+        job.setJarByClass(GroupBy.class);
+        job.setJobName(JOB_NAME);
+
+        // Create scanner.
+        Scan scan = new Scan();
+        // Create header and assign to configuration.
+        String header = args[2] + "," + args[3];
+        job.getConfiguration().setStrings(ATTRIBUTES, header);
+
+        // Init map and reduce functions
+        TableMapReduceUtil.initTableMapperJob(inputTable, scan, Mapper.class, Text.class, Text.class, job);
+        TableMapReduceUtil.initTableReducerJob(outputTable, Reducer.class, job);
+
+        boolean success = job.waitForCompletion(true);
+        return success ? 0 : 4;
+    }
+
+    public static class Mapper extends TableMapper<Text, Text> {
+
+        public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
+            // TODO Complete
+        }
+
+    }
+
+    public static class Reducer extends TableReducer<Text, Text, Text> {
+
+        public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
+            // TODO Complete
+        }
+
     }
 }
