@@ -29,8 +29,8 @@ public class GroupBy extends Configured implements Tool {
 
     private static String inputTable;
     private static String outputTable;
+    private static String aggregate;
     private static String attribute;
-    private static String value;
 
     public static void main(String[] args) throws Exception {
         // Check the quantity of params received.
@@ -99,7 +99,18 @@ public class GroupBy extends Configured implements Tool {
     public static class Mapper extends TableMapper<Text, Text> {
 
         public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
-            // TODO Complete
+            String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
+
+            // Get the aggregate attribute and the attribute to group.
+            aggregate = attributes[0];
+            attribute = attributes[1];
+
+            // Send the two attributes to combine, that reducer will receive.
+            String aggregateValue = new String(values.getValue(aggregate.getBytes(), aggregate.getBytes()));
+            String attributeValue = new String(values.getValue(attribute.getBytes(), attribute.getBytes()));
+            if (!aggregateValue.isEmpty() && !attributeValue.isEmpty())
+                context.write(new Text(attributeValue), new Text(aggregateValue));
+
         }
 
     }
