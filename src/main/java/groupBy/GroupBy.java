@@ -6,6 +6,7 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
@@ -13,6 +14,7 @@ import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -29,8 +31,6 @@ public class GroupBy extends Configured implements Tool {
 
     private static String inputTable;
     private static String outputTable;
-    private static String aggregate;
-    private static String attribute;
 
     public static void main(String[] args) throws Exception {
         // Check the quantity of params received.
@@ -102,8 +102,8 @@ public class GroupBy extends Configured implements Tool {
             String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
-            aggregate = attributes[0];
-            attribute = attributes[1];
+            String aggregate = attributes[0];
+            String attribute = attributes[1];
 
             // Send the two attributes to combine, that reducer will receive.
             String aggregateValue = new String(values.getValue(aggregate.getBytes(), aggregate.getBytes()));
@@ -118,7 +118,24 @@ public class GroupBy extends Configured implements Tool {
     public static class Reducer extends TableReducer<Text, Text, Text> {
 
         public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
-            // TODO Complete
+            String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
+
+            // Get the aggregate attribute and the attribute to group.
+            String aggregate = attributes[0];
+            String attribute = attributes[1];
+            int sum = 0;
+            // 'inputList' contains de combination of the key given in the map function.
+            // Iterate for all of them adding up the value for each.
+            while (inputList.iterator().hasNext()) {
+                Text val = inputList.iterator().next();
+                sum += Integer.parseInt(val.toString());
+            }
+
+            // Prepare the output row and then write it.
+            String outputKey = attribute + ":" + key.toString();
+            Put put = new Put(outputKey.getBytes());
+            put.add(aggregate.getBytes(), aggregate.getBytes(), Integer.toString(sum).getBytes());
+            context.write(new Text(outputKey), (Writable) put);
         }
 
     }
