@@ -1,25 +1,42 @@
 package groupBy;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.conf.Configured;
+import java.io.IOException;
+
+import com.kenai.jaffl.annotations.IgnoreError;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
-import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.mapreduce.TableMapper;
 import org.apache.hadoop.hbase.mapreduce.TableReducer;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
+import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.util.ToolRunner;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.junit.Ignore;
 
-import java.io.IOException;
+// EXAMPLE
+
+// INPUT
+//        ROW                                       COLUMN+CELL
+//        k1                                        column=a:a, timestamp=1477737677673, value=25
+//        k1                                        column=b:b, timestamp=1477737677868, value=10
+//        k1                                        column=c:c, timestamp=1477737677958, value=300
+//        k2                                        column=a:a, timestamp=1477737678038, value=50
+//        k2                                        column=b:b, timestamp=1477737678119, value=10
+//        k3                                        column=a:a, timestamp=1477737678162, value=10
+//        k3                                        column=c:c, timestamp=1477737679554, value=20
+
+// OUTPUT
+//        ROW                                       COLUMN+CELL
+//        b:10                                      column=a:a, timestamp=1477738460368, value=85
 
 public class GroupBy extends Configured implements Tool {
 
@@ -27,7 +44,8 @@ public class GroupBy extends Configured implements Tool {
     public static final String JOB_NAME = "GroupBy";
     public static final String ALREADY_EXISTS = "Output table already exists";
     public static final String NOT_EXIST = "Input table does not exist";
-    public static final String PARAMETERS_MISSING = "Parameters missing: 'inputTable outputTable aggregateAttribute groupByAttribute'";
+    public static final String PARAMETERS_MISSING = "Parameters missing: " +
+                                                    "'inputTable outputTable aggregateAttribute groupByAttribute'";
 
     private static String inputTable;
     private static String outputTable;
@@ -38,7 +56,7 @@ public class GroupBy extends Configured implements Tool {
             System.err.println(PARAMETERS_MISSING);
             System.exit(1);
         }
-        // Assign the input and output table.
+        // Assign the input and output table to global variables.
         inputTable = args[0];
         outputTable = args[1];
 
@@ -52,6 +70,7 @@ public class GroupBy extends Configured implements Tool {
         else
             System.exit(tablesRight);
     }
+
 
     private static int checkIOTables(String [] args) throws Exception {
         Configuration config = HBaseConfiguration.create();
@@ -71,8 +90,8 @@ public class GroupBy extends Configured implements Tool {
         // Create the output table and assign the correspond family (aggregateAttribute).
         HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
         htdOutput.addFamily(new HColumnDescriptor(args[2]));
-
         hba.createTable(htdOutput);
+
         return 0;
     }
 
@@ -98,7 +117,8 @@ public class GroupBy extends Configured implements Tool {
 
     public static class Mapper extends TableMapper<Text, Text> {
 
-        public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
+        public void map(ImmutableBytesWritable rowMetadata, Result values, Context context)
+                throws IOException, InterruptedException {
             String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
@@ -106,11 +126,16 @@ public class GroupBy extends Configured implements Tool {
             String attribute = attributes[1];
 
             // Send the two attributes to combine, that reducer will receive.
+            // The first element of 'getValue' function is the family and the second one is the qualifier.
             String aggregateValue = new String(values.getValue(aggregate.getBytes(), aggregate.getBytes()));
             String attributeValue = new String(values.getValue(attribute.getBytes(), attribute.getBytes()));
             if (!aggregateValue.isEmpty() && !attributeValue.isEmpty())
                 context.write(new Text(attributeValue), new Text(aggregateValue));
 
+            // We want to obtain the values of the rows which have 'attributeValue' as a family
+            // and 'attributeValue' as a qualifier.
+            //      If we have <1, 2> and <1, 3> as a key-value pairs,
+            //      we will obtain at the end of the combine function the following result: <1, {2, 3}>
         }
 
     }
@@ -123,8 +148,10 @@ public class GroupBy extends Configured implements Tool {
             // Get the aggregate attribute and the attribute to group.
             String aggregate = attributes[0];
             String attribute = attributes[1];
+
             int sum = 0;
             // 'inputList' contains de combination of the key given in the map function.
+            //      it would be {2, 3} if we considered the example above.
             // Iterate for all of them adding up the value for each.
             while (inputList.iterator().hasNext()) {
                 Text val = inputList.iterator().next();
@@ -135,7 +162,7 @@ public class GroupBy extends Configured implements Tool {
             String outputKey = attribute + ":" + key.toString();
             Put put = new Put(outputKey.getBytes());
             put.add(aggregate.getBytes(), aggregate.getBytes(), Integer.toString(sum).getBytes());
-            context.write(new Text(outputKey), (Writable) put);
+            context.write(new Text(outputKey), put);
         }
 
     }

@@ -1,0 +1,4 @@
+yarn jar RA.jar GroupBy equipF_groupByIN equipF_groupByOUT a b
+
+ROW                                       COLUMN+CELL
+b:10                                      column=a:a, timestamp=1477738460368, value=85
