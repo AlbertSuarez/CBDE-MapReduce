@@ -1,0 +1,4 @@
+disable 'equipF_groupByIN'
+disable 'equipF_groupByOUT'
+drop 'equipF_groupByIN'
+drop 'equipF_groupByOUT'

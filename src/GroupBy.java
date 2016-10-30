@@ -93,12 +93,12 @@ public class GroupBy extends Configured implements Tool {
         job.setJobName(JOB_NAME);
 
         // Create header and assign to configuration.
-        String header;
-        header = args[2] + "," + args[3];
+        Scan scan = new Scan();
+        String header = args[2] + "," + args[3];
         job.getConfiguration().setStrings(ATTRIBUTES, header);
 
         // Init map and reduce functions
-        TableMapReduceUtil.initTableMapperJob(inputTable, new Scan(), Mapper.class, Text.class, Text.class, job);
+        TableMapReduceUtil.initTableMapperJob(inputTable, scan, Mapper.class, Text.class, Text.class, job);
         TableMapReduceUtil.initTableReducerJob(outputTable, Reducer.class, job);
 
         boolean success = job.waitForCompletion(true);
@@ -112,18 +112,18 @@ public class GroupBy extends Configured implements Tool {
             String[] info = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
-            String aggregateAttribute = info[0];
-            String groupByAttribute = info[1];
+            String aggregate = info[0];
+            String groupBy = info[1];
 
             // Send the two attributes to combine, that reducer will receive.
             // The first element of 'getValue' function is the family and the second one is the qualifier.
-            String agrValue = new String(values.getValue(aggregateAttribute.getBytes(), aggregateAttribute.getBytes()));
-            String gBValue = new String(values.getValue(groupByAttribute.getBytes(), groupByAttribute.getBytes()));
-            if (!agrValue.isEmpty() && !gBValue.isEmpty())
-                context.write(new Text(gBValue), new Text(agrValue));
+            String aggregateValue = new String(values.getValue(aggregate.getBytes(), aggregate.getBytes()));
+            String groupByValue = new String(values.getValue(groupBy.getBytes(), groupBy.getBytes()));
+            if (!aggregateValue.isEmpty() && !groupByValue.isEmpty())
+                context.write(new Text(groupByValue), new Text(aggregateValue));
 
-            // We want to obtain the values of the rows which have 'attributeValue' as a family
-            // and 'attributeValue' as a qualifier.
+            // We want to obtain the values of the rows which have 'groupByValue' as a family
+            // and 'aggregateValue' as a qualifier.
             //      If we have <1, 2> and <1, 3> as a key-value pairs,
             //      we will obtain at the end of the combine function the following result: <1, {2, 3}>
 
@@ -137,8 +137,8 @@ public class GroupBy extends Configured implements Tool {
             String[] info = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
-            String aggregateAttribute = info[0];
-            String groupByAttribute = info[1];
+            String aggregate = info[0];
+            String groupBy = info[1];
 
             int sum = 0;
             while (inputList.iterator().hasNext()) {
@@ -150,10 +150,9 @@ public class GroupBy extends Configured implements Tool {
             }
 
             // Prepare the output row and then write it.
-            String sumString = Integer.toString(sum);
-            String outputTupleKey = groupByAttribute + ":" + key.toString();
+            String outputTupleKey = groupBy + ":" + key.toString();
             Put put = new Put(outputTupleKey.getBytes());
-            put.add(aggregateAttribute.getBytes(), aggregateAttribute.getBytes(), sumString.getBytes());
+            put.add(aggregate.getBytes(), aggregate.getBytes(), Integer.toString(sum).getBytes());
             context.write(new Text(outputTupleKey), put);
 
         }
