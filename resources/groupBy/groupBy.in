@@ -5,7 +5,7 @@ put 'equipF_groupByIN', 'k1', 'c:c', '300'
 put 'equipF_groupByIN', 'k2', 'a:a', '50'
 put 'equipF_groupByIN', 'k2', 'b:b', '10'
 put 'equipF_groupByIN', 'k3', 'a:a', '10'
-put 'equipF_groupByIN', 'k3', 'b:b', '10'
+put 'equipF_groupByIN', 'k3', 'b:b', '20'
 
 ROW                                        COLUMN+CELL
  k1                                        column=a:a, timestamp=1477737677673, value=25
