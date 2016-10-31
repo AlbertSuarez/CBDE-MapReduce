@@ -21,10 +21,25 @@ import java.io.IOException;
 // EXAMPLE OF SELECTION
 
 // INPUT
+//        ROW                                        COLUMN+CELL
+//        k1                                         column=a:a, timestamp=1477912921357, value=25
+//        k1                                         column=b:b, timestamp=1477912921413, value=10
+//        k1                                         column=c:c, timestamp=1477912921475, value=300
+//        k2                                         column=a:a, timestamp=1477912921508, value=50
+//        k2                                         column=b:b, timestamp=1477912921543, value=10
+//        k3                                         column=a:a, timestamp=1477912921576, value=10
+//        k3                                         column=b:b, timestamp=1477912923854, value=20
 
 // QUERY
+// yarn jar RA.jar Selection equipF_selectionIN equipF_selectionOUT b 10
 
 // OUTPUT
+//        ROW                                        COLUMN+CELL
+//        k1                                         column=a:a, timestamp=1477913728071, value=25
+//        k1                                         column=b:b, timestamp=1477913728071, value=10
+//        k1                                         column=c:c, timestamp=1477913728071, value=300
+//        k2                                         column=a:a, timestamp=1477913728071, value=50
+//        k2                                         column=b:b, timestamp=1477913728071, value=10
 
 public class Selection extends Configured implements Tool {
     public static final String PARAMETERS = "'inputTable outputTable [family:]attribute value'";
@@ -149,7 +164,7 @@ public class Selection extends Configured implements Tool {
                 // Iterate for all of them adding in the output table.
                 Text outputKey = inputList.iterator().next();
                 Put put = new Put(key.getBytes());
-                for (String row : key.toString().split(SEMI_COLON)) {
+                for (String row : outputKey.toString().split(SEMI_COLON)) {
                     String[] values = row.split(COLON);
                     // Adding the family, qualifier and the value respectively.
                     put.add(values[0].getBytes(), values[0].getBytes(), values[1].getBytes());
