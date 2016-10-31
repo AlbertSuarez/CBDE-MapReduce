@@ -1,0 +1,8 @@
+yarn jar RA.jar Selection equipF_selectionIN equipF_selectionOUT b 10
+
+ROW                                         COLUMN+CELL
+ k1                                         column=a:a, timestamp=1477913728071, value=25
+ k1                                         column=b:b, timestamp=1477913728071, value=10
+ k1                                         column=c:c, timestamp=1477913728071, value=300
+ k2                                         column=a:a, timestamp=1477913728071, value=50
+ k2                                         column=b:b, timestamp=1477913728071, value=10

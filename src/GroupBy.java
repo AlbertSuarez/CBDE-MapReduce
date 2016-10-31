@@ -29,6 +29,9 @@ import org.apache.hadoop.util.ToolRunner;
 //        k3                                        column=a:a, timestamp=1477737678162, value=10
 //        k3                                        column=b:b, timestamp=1477737679554, value=20
 
+// QUERY
+// yarn jar RA.jar GroupBy equipF_groupByIN equipF_groupByOUT a b
+
 // OUTPUT
 //        ROW                                       COLUMN+CELL
 //        b:10                                      column=a:a, timestamp=1477738460368, value=75
@@ -109,11 +112,11 @@ public class GroupBy extends Configured implements Tool {
 
         public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
 
-            String[] info = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
+            String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
-            String aggregate = info[0];
-            String groupBy = info[1];
+            String aggregate = attributes[0];
+            String groupBy = attributes[1];
 
             // Send the two attributes to combine, that reducer will receive.
             // The first element of 'getValue' function is the family and the second one is the qualifier.
@@ -134,11 +137,11 @@ public class GroupBy extends Configured implements Tool {
 
         public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
 
-            String[] info = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
+            String[] attributes = context.getConfiguration().getStrings(ATTRIBUTES, "empty");
 
             // Get the aggregate attribute and the attribute to group.
-            String aggregate = info[0];
-            String groupBy = info[1];
+            String aggregate = attributes[0];
+            String groupBy = attributes[1];
 
             int sum = 0;
             while (inputList.iterator().hasNext()) {

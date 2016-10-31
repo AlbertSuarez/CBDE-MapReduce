@@ -1,0 +1,4 @@
+disable 'equipF_selectionIN'
+disable 'equipF_selectionOUT'
+drop 'equipF_selectionIN'
+drop 'equipF_selectionOUT'
