@@ -1,0 +1,6 @@
+disable 'equipF_joinIN1'
+disable 'equipF_joinIN2'
+disable 'equipF_joinOUT'
+drop 'equipF_joinIN1'
+drop 'equipF_joinIN2'
+drop 'equipF_joinOUT'

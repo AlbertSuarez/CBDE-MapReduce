@@ -1,0 +1,9 @@
+create 'equipF_joinIN1', 'a'
+put 'equipF_joinIN1', 'k1', 'a:a', '25'
+put 'equipF_joinIN1', 'k2', 'a:a', '50'
+put 'equipF_joinIN1', 'k3', 'a:a', '10'
+
+create 'equipF_joinIN2', 'b'
+put 'equipF_joinIN2', 'k1', 'b:b', '70'
+put 'equipF_joinIN2', 'k2', 'b:b', '50'
+put 'equipF_joinIN2', 'k3', 'b:b', '15'
