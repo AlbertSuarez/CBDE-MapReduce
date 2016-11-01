@@ -1,1 +1,5 @@
 yarn jar RA.jar Join equipF_joinIN1 equipF_joinIN2 equipF_joinOUT a b
+
+ROW                                         COLUMN+CELL
+ k2_k2                                      column=a:a, timestamp=1478040235460, value=50
+ k2_k2                                      column=b:b, timestamp=1478040235460, value=50

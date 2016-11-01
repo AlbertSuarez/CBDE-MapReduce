@@ -23,6 +23,25 @@ import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 
+// INPUT
+//        ROW                                        COLUMN+CELL
+//        k1                                         column=a:a, timestamp=1478040174459, value=25
+//        k2                                         column=a:a, timestamp=1478040174522, value=50
+//        k3                                         column=a:a, timestamp=1478040174550, value=10
+
+//        ROW                                        COLUMN+CELL
+//        k1                                         column=b:b, timestamp=1478040176161, value=70
+//        k2                                         column=b:b, timestamp=1478040176219, value=50
+//        k3                                         column=b:b, timestamp=1478040179596, value=15
+
+// QUERY
+// yarn jar RA.jar Join equipF_joinIN1 equipF_joinIN2 equipF_joinOUT a b
+
+// OUTPUT
+//        ROW                                        COLUMN+CELL
+//        k2_k2                                      column=a:a, timestamp=1478040235460, value=50
+//        k2_k2                                      column=b:b, timestamp=1478040235460, value=50
+
 public class Join extends Configured implements Tool {
 
     public static final String PARAMETERS = "'leftInputTable rightInputTable outputTable leftAttribute rightAttribute'";
@@ -106,6 +125,8 @@ public class Join extends Configured implements Tool {
         // We pass the names of two input tables as External and Internal tables of the Cartesian product, and a hash random value.
         job.getConfiguration().setStrings("External", inputTable1);
         job.getConfiguration().setStrings("Internal", inputTable2);
+        job.getConfiguration().setStrings("ExternalAttribute", leftAttribute);
+        job.getConfiguration().setStrings("InternalAttribute", rightAttribute);
 
         // To initialize the mapper, we need to provide two Scan objects (ArrayList of two Scan objects) for two input tables, as follows.
         ArrayList<Scan> scans = new ArrayList<Scan>();
@@ -135,10 +156,10 @@ public class Join extends Configured implements Tool {
 
             // From the context object we obtain the input TableSplit this row belongs to
             TableSplit currentSplit = (TableSplit)context.getInputSplit();
-		   
-		   /* 
+
+		   /*
 			  From the TableSplit object, we can further extract the name of the table that the split belongs to.
-			  We use the extracted table name to distinguish between external and internal tables as explained below. 
+			  We use the extracted table name to distinguish between external and internal tables as explained below.
 		   */
             TableName tableNameB = currentSplit.getTable();
             String tableName = tableNameB.getQualifierAsString();
@@ -148,7 +169,7 @@ public class Join extends Configured implements Tool {
 
             KeyValue[] attributes = values.raw();
             for (KeyValue attribute : attributes) {
-                tuple += SEMI_COLON + new String(attribute.getFamily()) + COLON +
+                tuple += ";" + new String(attribute.getFamily()) + COLON +
                         new String(attribute.getQualifier()) + COLON + new String(attribute.getValue());
             }
 
@@ -178,6 +199,8 @@ public class Join extends Configured implements Tool {
             String outputKey;
             String[] external = context.getConfiguration().getStrings("External","Default");
             String[] internal = context.getConfiguration().getStrings("Internal","Default");
+            String[] leftAttribute = context.getConfiguration().getStrings("ExternalAttribute","Default");
+            String[] rightAttribute = context.getConfiguration().getStrings("InternalAttribute","Default");
             String[] eAttributes, iAttributes;
             String[] attribute_value;
 
@@ -201,46 +224,30 @@ public class Join extends Configured implements Tool {
                         iTuple=iTableTuple.split(HASHTAG)[1];
                         iAttributes=iTuple.split(SEMI_COLON);
                         if (iTableTuple.startsWith(internal[0])) {
+                            // Create a key for the output
+                            outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
+                            // Create a tuple for the output table
+                            put = new Put(outputKey.getBytes());
 
-                            // Search leftAttribute and rightAttribute on external and internal table
-                            int eIndex, iIndex;
-                            eIndex = iIndex = -1;
+                            String leftValue = null;
+                            String rightValue = null;
+                            // Set the values for the columns of the external table
                             for (k = 1; k < eAttributes.length; k++) {
                                 attribute_value = eAttributes[k].split(COLON);
-                                if (attribute_value[1].equals(leftAttribute)) {
-                                    eIndex = k;
-                                    break;
-                                }
+                                if (attribute_value[1].equals(leftAttribute[0]))
+                                    leftValue = attribute_value[2];
+                                put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
+                            // Set the values for the columns of the internal table
                             for (k = 1; k < iAttributes.length; k++) {
                                 attribute_value = iAttributes[k].split(COLON);
-                                if (attribute_value[1].equals(rightAttribute)) {
-                                    iIndex = k;
-                                    break;
-                                }
+                                if (attribute_value[1].equals(rightAttribute[0]))
+                                    rightValue = attribute_value[2];
+                                put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
-
-                            if (eIndex != -1 && iIndex != -1) {
-                                if (eAttributes[eIndex].split(COLON)[2].equals(iAttributes[iIndex].split(COLON)[2])) {
-                                    // Create a key for the output
-                                    outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
-                                    // Create a tuple for the output table
-                                    put = new Put(outputKey.getBytes());
-
-                                    // Set the values for the columns of the external table
-                                    for (k = 1; k < eAttributes.length; k++) {
-                                        attribute_value = eAttributes[k].split(COLON);
-                                        put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
-                                    }
-                                    // Set the values for the columns of the internal table
-                                    for (k = 1; k < iAttributes.length; k++) {
-                                        attribute_value = iAttributes[k].split(COLON);
-                                        put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
-                                    }
-                                    // Put the tuple in the output table through the context object
-                                    context.write(new Text(outputKey), put);
-                                }
-                            }
+                            // Put the tuple in the output table through the context object
+                            if (leftValue != null && rightValue != null && leftValue.equals(rightValue))
+                                context.write(new Text(outputKey), put);
                         }
                     }
                 }

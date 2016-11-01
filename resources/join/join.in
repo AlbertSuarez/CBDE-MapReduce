@@ -7,3 +7,13 @@ create 'equipF_joinIN2', 'b'
 put 'equipF_joinIN2', 'k1', 'b:b', '70'
 put 'equipF_joinIN2', 'k2', 'b:b', '50'
 put 'equipF_joinIN2', 'k3', 'b:b', '15'
+
+ROW                                         COLUMN+CELL
+ k1                                         column=a:a, timestamp=1478040174459, value=25
+ k2                                         column=a:a, timestamp=1478040174522, value=50
+ k3                                         column=a:a, timestamp=1478040174550, value=10
+
+ROW                                         COLUMN+CELL
+ k1                                         column=b:b, timestamp=1478040176161, value=70
+ k2                                         column=b:b, timestamp=1478040176219, value=50
+ k3                                         column=b:b, timestamp=1478040179596, value=15
