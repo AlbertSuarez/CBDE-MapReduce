@@ -46,7 +46,11 @@ public class Join extends Configured implements Tool {
 
     public static final String PARAMETERS = "'leftInputTable rightInputTable outputTable leftAttribute rightAttribute'";
     public static final String JOB_NAME = "Join";
-    public static final String HASHTAG = "#";
+    public static final String FIRST_TABLE_ID = "External";
+    public static final String SECOND_TABLE_ID = "Internal";
+    public static final String LEFT_ATTRIBUTE_ID = "ExternalAttribute";
+    public static final String RIGHT_ATTRIBUTE_ID = "InternalAttribute";
+    public static final String HASH = "#";
     public static final String COLON = ":";
     public static final String SEMI_COLON = ";";
     public static final String UNDER_SCORE = "_";
@@ -58,18 +62,22 @@ public class Join extends Configured implements Tool {
     private static String rightAttribute;
 
     public static void main(String[] args) throws Exception {
+        // Checking the parameter's count.
         if (args.length != 5) {
             System.err.println("Parameters missing: " + PARAMETERS);
             System.exit(1);
         }
+        // Assigning the parameters to global variables.
         inputTable1 = args[0];
         inputTable2 = args[1];
         outputTable = args[2];
         leftAttribute = args[3];
         rightAttribute = args[4];
 
+        // Checking the validity of the tables.
         int tablesRight = checkIOTables(args);
         if (tablesRight == 0) {
+            // Execute the algorithm.
             int ret = ToolRunner.run(new Join(), args);
             System.exit(ret);
         } else {
@@ -100,7 +108,7 @@ public class Join extends Configured implements Tool {
         HTableDescriptor htdInput1 = hba.getTableDescriptor(inputTable1.getBytes());
         HTableDescriptor htdInput2 = hba.getTableDescriptor(inputTable2.getBytes());
 
-        // Initialize the outputTable
+        // Initialize the outputTable.
         HTableDescriptor htdOutput = new HTableDescriptor(outputTable.getBytes());
 
         // Assign the same families that left input table.
@@ -121,14 +129,15 @@ public class Join extends Configured implements Tool {
         job.setJarByClass(Join.class);
         job.setJobName(JOB_NAME);
 
-        // To pass parameters to the mapper and reducer we must use the setStrings of the Configuration object
-        // We pass the names of two input tables as External and Internal tables of the Cartesian product, and a hash random value.
-        job.getConfiguration().setStrings("External", inputTable1);
-        job.getConfiguration().setStrings("Internal", inputTable2);
-        job.getConfiguration().setStrings("ExternalAttribute", leftAttribute);
-        job.getConfiguration().setStrings("InternalAttribute", rightAttribute);
+        // To pass parameters to the mapper and reducer we must use the setStrings of the Configuration object.
+        // We pass the names of two input tables as External and Internal tables of the Join operation,
+        // and the two respective attributes to compare.
+        job.getConfiguration().setStrings(FIRST_TABLE_ID, inputTable1);
+        job.getConfiguration().setStrings(SECOND_TABLE_ID, inputTable2);
+        job.getConfiguration().setStrings(LEFT_ATTRIBUTE_ID, leftAttribute);
+        job.getConfiguration().setStrings(RIGHT_ATTRIBUTE_ID, rightAttribute);
 
-        // To initialize the mapper, we need to provide two Scan objects (ArrayList of two Scan objects) for two input tables, as follows.
+        // To initialize the mapper, we need to provide two Scan objects as an array for two input tables, as follows.
         ArrayList<Scan> scans = new ArrayList<Scan>();
 
         Scan scan1 = new Scan();
@@ -139,7 +148,7 @@ public class Join extends Configured implements Tool {
         scan2.setAttribute("scan.attributes.table.name", Bytes.toBytes(inputTable2));
         scans.add(scan2);
 
-        // Init map and reduce functions
+        // Init map and reduce functions.
         TableMapReduceUtil.initTableMapperJob(scans, Mapper.class, Text.class, Text.class, job);
         TableMapReduceUtil.initTableReducerJob(outputTable, Reducer.class, job);
 
@@ -151,37 +160,35 @@ public class Join extends Configured implements Tool {
 
         public void map(ImmutableBytesWritable rowMetadata, Result values, Context context) throws IOException, InterruptedException {
 
-            String[] external = context.getConfiguration().getStrings("External", "Default");
-            String[] internal = context.getConfiguration().getStrings("Internal", "Default");
+            String[] external = context.getConfiguration().getStrings(FIRST_TABLE_ID, "Default");
+            String[] internal = context.getConfiguration().getStrings(SECOND_TABLE_ID, "Default");
 
             // From the context object we obtain the input TableSplit this row belongs to
             TableSplit currentSplit = (TableSplit)context.getInputSplit();
 
-		   /*
-			  From the TableSplit object, we can further extract the name of the table that the split belongs to.
-			  We use the extracted table name to distinguish between external and internal tables as explained below.
-		   */
+			// From the TableSplit object, we can further extract the name of the table that the split belongs to.
+			// We use the extracted table name to distinguish between external and internal tables as explained below.
             TableName tableNameB = currentSplit.getTable();
             String tableName = tableNameB.getQualifierAsString();
 
-            // We create a string as follows for each key: tableName#key;family:attributeValue
-            String tuple = tableName + HASHTAG + new String(rowMetadata.get(), "US-ASCII");
+            // We create a string as follows for each key: tableName#key;family:attributeValue.
+            String tuple = tableName + HASH + new String(rowMetadata.get(), "US-ASCII");
 
             KeyValue[] attributes = values.raw();
             for (KeyValue attribute : attributes) {
-                tuple += ";" + new String(attribute.getFamily()) + COLON +
+                tuple += SEMI_COLON + new String(attribute.getFamily()) + COLON +
                         new String(attribute.getQualifier()) + COLON + new String(attribute.getValue());
             }
 
-            // Is this key external (e.g., from the external table)?
+            // Is this key external (e.g., from the external table or first table)?
             if (tableName.equalsIgnoreCase(external[0])) {
-                // This writes a key-value pair to the context object
                 // If it is external, it gets as key a hash value and it is written only once in the context object
                 context.write(new Text(Integer.toString(Double.valueOf(Math.random()*10).intValue())), new Text(tuple));
             }
-            //Is this key internal (e.g., from the internal table)?
-            //If it is internal, it is written to the context object many times, each time having as key one of the potential hash values
+            // Is this key internal (e.g., from the internal table or second table)?
             if (tableName.equalsIgnoreCase(internal[0])) {
+                // If it is internal, it is written to the context object many times,
+                // each time having as key one of the potential hash values
                 for (int i = 0; i < 10; i++) {
                     context.write(new Text(Integer.toString(i)), new Text(tuple));
                 }
@@ -192,60 +199,51 @@ public class Join extends Configured implements Tool {
     public static class Reducer extends TableReducer<Text, Text, Text> {
 
         public void reduce(Text key, Iterable<Text> inputList, Context context) throws IOException, InterruptedException {
-            int i, j, k;
-            Put put;
-            String eTableTuple, iTableTuple;
-            String eTuple, iTuple;
-            String outputKey;
-            String[] external = context.getConfiguration().getStrings("External","Default");
-            String[] internal = context.getConfiguration().getStrings("Internal","Default");
-            String[] leftAttribute = context.getConfiguration().getStrings("ExternalAttribute","Default");
-            String[] rightAttribute = context.getConfiguration().getStrings("InternalAttribute","Default");
-            String[] eAttributes, iAttributes;
-            String[] attribute_value;
+            String[] external = context.getConfiguration().getStrings(FIRST_TABLE_ID, "Default");
+            String[] internal = context.getConfiguration().getStrings(SECOND_TABLE_ID, "Default");
+            String[] leftAttribute = context.getConfiguration().getStrings(LEFT_ATTRIBUTE_ID, "Default");
+            String[] rightAttribute = context.getConfiguration().getStrings(RIGHT_ATTRIBUTE_ID, "Default");
 
-            // All tuples with the same hash value are stored in a vector
-            Vector<String> tuples = new Vector<String>();
-            for (Text val : inputList) {
-                tuples.add(val.toString());
-            }
+            // All tuple with the same hash value are stored in a vector.
+            Vector<String> tupleVector = new Vector<String>();
+            for (Text val : inputList)
+                tupleVector.add(val.toString());
 
-            // In this for, each internal tuple is joined with each external tuple
-            // Since the result must be stored in a HBase table, we configure a new Put, fill it with the joined data and write it in the context object
-            for (i = 0; i < tuples.size(); i++) {
-                eTableTuple = tuples.get(i);
-                // we extract the information from the tuple as we packed it in the mapper
-                eTuple = eTableTuple.split(HASHTAG)[1];
-                eAttributes = eTuple.split(SEMI_COLON);
+            // In this for, each internal tuple is joined with each external tuple.
+            // Since the result must be stored in a HBase table, we configure a new Put,
+            // fill it with the joined data and write it in the context object
+            for (String eTableTuple : tupleVector) {
+                // We extract the information from the tuple as we packed it in the mapper.
+                String eTuple = eTableTuple.split(HASH)[1];
+                String[] eAttributes = eTuple.split(SEMI_COLON);
                 if (eTableTuple.startsWith(external[0])) {
-                    for (j = 0; j < tuples.size(); j++) {
-                        iTableTuple = tuples.get(j);
-                        // we extract the information from the tuple as we packed it in the mapper
-                        iTuple=iTableTuple.split(HASHTAG)[1];
-                        iAttributes=iTuple.split(SEMI_COLON);
+                    for (String iTableTuple : tupleVector) {
+                        // We extract the information from the tuple as we packed it in the mapper.
+                        String iTuple = iTableTuple.split(HASH)[1];
+                        String[] iAttributes = iTuple.split(SEMI_COLON);
                         if (iTableTuple.startsWith(internal[0])) {
-                            // Create a key for the output
-                            outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
-                            // Create a tuple for the output table
-                            put = new Put(outputKey.getBytes());
+                            // Create a key for the output.
+                            String outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
+                            // Create a tuple for the output table.
+                            Put put = new Put(outputKey.getBytes());
 
                             String leftValue = null;
                             String rightValue = null;
-                            // Set the values for the columns of the external table
-                            for (k = 1; k < eAttributes.length; k++) {
-                                attribute_value = eAttributes[k].split(COLON);
+                            // Set the values for the columns of the external table.
+                            for (int k = 1; k < eAttributes.length; k++) {
+                                String[] attribute_value = eAttributes[k].split(COLON);
                                 if (attribute_value[1].equals(leftAttribute[0]))
                                     leftValue = attribute_value[2];
                                 put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
-                            // Set the values for the columns of the internal table
-                            for (k = 1; k < iAttributes.length; k++) {
-                                attribute_value = iAttributes[k].split(COLON);
+                            // Set the values for the columns of the internal table.
+                            for (int k = 1; k < iAttributes.length; k++) {
+                                String[] attribute_value = iAttributes[k].split(COLON);
                                 if (attribute_value[1].equals(rightAttribute[0]))
                                     rightValue = attribute_value[2];
                                 put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
                             }
-                            // Put the tuple in the output table through the context object
+                            // Put the tuple in the output table through the context object.
                             if (leftValue != null && rightValue != null && leftValue.equals(rightValue))
                                 context.write(new Text(outputKey), put);
                         }
