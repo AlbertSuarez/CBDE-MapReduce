@@ -35,6 +35,8 @@ public class Join extends Configured implements Tool {
     public static String inputTable1;
     public static String inputTable2;
     private static String outputTable;
+    private static String leftAttribute;
+    private static String rightAttribute;
 
     public static void main(String[] args) throws Exception {
         if (args.length != 5) {
@@ -44,6 +46,8 @@ public class Join extends Configured implements Tool {
         inputTable1 = args[0];
         inputTable2 = args[1];
         outputTable = args[2];
+        leftAttribute = args[3];
+        rightAttribute = args[4];
 
         int tablesRight = checkIOTables(args);
         if (tablesRight == 0) {
@@ -144,7 +148,7 @@ public class Join extends Configured implements Tool {
 
             KeyValue[] attributes = values.raw();
             for (KeyValue attribute : attributes) {
-                tuple += ";" + new String(attribute.getFamily()) + COLON +
+                tuple += SEMI_COLON + new String(attribute.getFamily()) + COLON +
                         new String(attribute.getQualifier()) + COLON + new String(attribute.getValue());
             }
 
@@ -197,22 +201,46 @@ public class Join extends Configured implements Tool {
                         iTuple=iTableTuple.split(HASHTAG)[1];
                         iAttributes=iTuple.split(SEMI_COLON);
                         if (iTableTuple.startsWith(internal[0])) {
-                            // Create a key for the output
-                            outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
-                            // Create a tuple for the output table
-                            put = new Put(outputKey.getBytes());
-                            // Set the values for the columns of the external table
+
+                            // Search leftAttribute and rightAttribute on external and internal table
+                            int eIndex, iIndex;
+                            eIndex = iIndex = -1;
                             for (k = 1; k < eAttributes.length; k++) {
                                 attribute_value = eAttributes[k].split(COLON);
-                                put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
+                                if (attribute_value[1].equals(leftAttribute)) {
+                                    eIndex = k;
+                                    break;
+                                }
                             }
-                            // Set the values for the columns of the internal table
                             for (k = 1; k < iAttributes.length; k++) {
                                 attribute_value = iAttributes[k].split(COLON);
-                                put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
+                                if (attribute_value[1].equals(rightAttribute)) {
+                                    iIndex = k;
+                                    break;
+                                }
                             }
-                            // Put the tuple in the output table through the context object
-                            context.write(new Text(outputKey), put);
+
+                            if (eIndex != -1 && iIndex != -1) {
+                                if (eAttributes[eIndex].split(COLON)[2].equals(iAttributes[iIndex].split(COLON)[2])) {
+                                    // Create a key for the output
+                                    outputKey = eAttributes[0] + UNDER_SCORE + iAttributes[0];
+                                    // Create a tuple for the output table
+                                    put = new Put(outputKey.getBytes());
+
+                                    // Set the values for the columns of the external table
+                                    for (k = 1; k < eAttributes.length; k++) {
+                                        attribute_value = eAttributes[k].split(COLON);
+                                        put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
+                                    }
+                                    // Set the values for the columns of the internal table
+                                    for (k = 1; k < iAttributes.length; k++) {
+                                        attribute_value = iAttributes[k].split(COLON);
+                                        put.addColumn(attribute_value[0].getBytes(), attribute_value[1].getBytes(), attribute_value[2].getBytes());
+                                    }
+                                    // Put the tuple in the output table through the context object
+                                    context.write(new Text(outputKey), put);
+                                }
+                            }
                         }
                     }
                 }
